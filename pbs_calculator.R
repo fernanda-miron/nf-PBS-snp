@@ -4,6 +4,9 @@
 # Charging library
 library("dplyr")
 library("ggplot2")
+library("scales")
+library("tidyr")
+library("cowplot")
 
 ## Read args from command line
 args <- commandArgs(trailingOnly = T)
@@ -84,10 +87,10 @@ arreglado <- pbsresults[order(-pbsresults$PBS_value),]
 write.table(arreglado, file = tsv_file, col.names = T, row.names = F, sep = "\t")
 
 ## Making manhattan plot
-## vamos a quedarnos solo con datos que tengan cromosomas 1-22, X o Y
+## only 1-22, X o Y
 valid_chroms <- c(1:22, "X", "Y")
 
-#limpiamos solo para quedarnos con cromosomas validos
+#cleaning for only valid chrs 
 clean_data.df <- arreglado %>%
   filter( CHROM %in% valid_chroms ) %>%
   ##Para poder ver chrom X y Y, los renumeramos a 23 y 24 respectivamente
@@ -127,27 +130,24 @@ man_uno.p <- ggplot( data = adjusted.df,
                      mapping = aes( x = position_on_x,
                                     y = PBS_value,     # transformamos los valores de Y a menos log10
                                     color = CHR_ID ) )   +
-  geom_point( alpha = 0.2 )
-man_uno.p
+  geom_point( alpha = 0.1 )
 
 ## Creating basic plot
 # Vamos a cambiar la escala de colores, a algo mas estandar
 man_dos.p <- man_uno.p +
-  scale_color_manual( values = rep(c("#1B998B", "#E71D36"), 12 ))
-man_dos.p
+  scale_color_manual( values = rep(c("#F95738","#1B998B"), 12 ))
 
 # vamos a poner los nombres de los cromosomas
 man_tres.p <- man_dos.p +
   scale_x_continuous( label = xaxis.df$CHR_ID,      # Le ponemos un eje especial a X
-                      breaks= xaxis.df$center ) 
-man_tres.p
+                      breaks= xaxis.df$center,
+                      expand = c(0.02, 0.5)) 
 
 # Agregamos una linea roja con el corte de PBS
-PBS_cutoff <- 0.2
+PBS_cutoff <- 0.8
 man_cuatro.p <- man_tres.p +
   geom_hline( yintercept = PBS_cutoff,     
               color = "#2B2C28", lty = "dashed")        
-man_cuatro.p
 
 # Ponemos titulo, etiqueta en X y modificamos tema
 man_cinco.p <- man_cuatro.p +
@@ -157,20 +157,163 @@ man_cinco.p <- man_cuatro.p +
   theme_light(base_size = 12) +                              
   theme( legend.position="none",            
          panel.grid = element_blank(),
-  )
-man_cinco.p
+         panel.spacing = ,)
 
 # Separamos titulos de eje de plot
 man_seis.p <- man_cinco.p +
   theme(axis.title.x = element_text(margin=margin(10,0,0,0), face = "bold", color = "grey20"),
         axis.title.y = element_text(margin=margin(0,10,0,0), face = "bold", color = "grey20"),
         plot.title=element_text(size=15,face="bold", color = "grey20"))
-man_seis.p
+
+# Makin bar plot
+p1 <- ggplot(data = arreglado, mapping = aes(x = PBS_value)) +
+  geom_histogram( fill="#EE964B") +
+  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x))) +
+  scale_x_continuous(expand = c(0.02, 0)) +
+  theme_bw() +
+  theme(axis.title.x = element_text(margin=margin(10,0,0,0), face = "bold", color = "grey20"),
+        axis.title.y = element_text(margin=margin(0,10,0,0), face = "bold", color = "grey20"),
+        plot.title=element_text(size=15,face="bold", color = "grey20")) +
+  labs(title = paste("PBS by SNP"),
+       y = "Number of SNPs",
+       x = "PBS value") 
+p1
+
+# Spiderplot
+## Making spiderplot graph
+## Reading data
+frq.names <- list.files(path = file_dir, pattern = "*.frq", full.names = T)
+
+## Reading first data frame
+AF_1 <- read.table(file = frq.names[1], sep = "\t",
+                   header = T, stringsAsFactors = F, 
+                   fill = T, row.names = NULL)
+
+## Changing df format
+colnames(AF_1) <- c("CHROM", "POS", "N_ALLELES", "N_CHR", "AF1_1", "AF2_1")
+AF_1 <- transform(AF_1, CHROM = as.numeric(CHROM))
+AF_1 <- transform(AF_1, POS = as.numeric(POS))
+
+## Reading second dataframe
+AF_2 <- read.table(file = frq.names[2], sep = "\t",
+                   header = T, stringsAsFactors = F, 
+                   fill = T, row.names = NULL)
+
+## Changing df format
+colnames(AF_2) <- c("CHROM", "POS", "N_ALLELES", "N_CHR", "AF1_2", "AF2_2")
+AF_2 <- transform(AF_2, CHROM = as.numeric(CHROM))
+AF_2 <- transform(AF_2, POS = as.numeric(POS))
+
+## Reading third dataframe
+AF_3 <- read.table(file = frq.names[3], sep = "\t",
+                   header = T, stringsAsFactors = F, 
+                   fill = T, row.names = NULL)
+
+## Changing df format
+colnames(AF_3) <- c("CHROM", "POS", "N_ALLELES", "N_CHR", "AF1_3", "AF2_3")
+AF_3 <- transform(AF_3, CHROM = as.numeric(CHROM))
+AF_3 <- transform(AF_3, POS = as.numeric(POS))
+
+## Merge data
+merged_data.df <- arreglado %>% left_join(AF_1,
+                                          by = c("CHROM"="CHROM", "POS"="POS")) %>%
+  left_join(AF_2, by = c("CHROM"="CHROM","POS"="POS","N_ALLELES" = "N_ALLELES")) %>%
+  left_join(AF_3, by = c("CHROM"="CHROM","POS"="POS","N_ALLELES" = "N_ALLELES")) %>%
+  select(2:3,6:7,9:10,12:13)
+
+## Changing formats
+fixed_data.df <- merged_data.df %>%
+  mutate(AF1_1 = gsub(x = AF1_1,
+                      pattern = ".*:",
+                      replacement = "")) %>%
+  mutate(AF2_1 = gsub(x = AF2_1,
+                      pattern = ".*:",
+                      replacement = "")) %>%
+  mutate(AF1_2 = gsub(x = AF1_2,
+                      pattern = ".*:",
+                      replacement = "")) %>%
+  mutate(AF2_2 = gsub(x = AF2_2,
+                      pattern = ".*:",
+                      replacement = "")) %>%
+  mutate(AF1_3 = gsub(x = AF1_3,
+                      pattern = ".*:",
+                      replacement = "")) %>%
+  mutate(AF2_3 = gsub(x = AF2_3,
+                      pattern = ".*:",
+                      replacement = ""))
+
+## Add SNP´s name
+nombres <- sprintf("SNP%s",seq(1:nrow(fixed_data.df)))
+fixed_data.df$SNP <- nombres
+
+## Pivot dataframe
+fixed_data.df <- pivot_longer(fixed_data.df, cols = c("AF1_1", "AF1_2", "AF1_3",
+                                                      "AF2_1", "AF2_2", "AF2_3" ),
+                              names_to = "AF", values_to = "valor")
+## FIltering
+row_name <- "SNP1"
+fst_values <- c("AF2_1", "AF2_2", "AF2_3")
+fixed_data.df <- transform(fixed_data.df, valor = as.numeric(valor))
+
+## Ploting first spider plot
+spider_uno.p <- fixed_data.df %>%
+  filter(SNP == row_name) %>%
+  filter(AF == fst_values) %>%
+  ggplot( mapping = aes(x = AF, y = valor) ) +
+  geom_point( size = 3, color = "#49697F" )
+spider_uno.p
+
+## Using geom segment geometry
+spider_dos.p <- spider_uno.p +
+  geom_segment(
+    aes( x = AF, xend = AF,
+         y = 0.0, yend = valor), color = "#49697F", size = 1
+  )
+spider_dos.p
+
+## Coord polar
+spider_tres.p <- spider_dos.p + 
+  coord_polar()
+spider_tres.p
+
+## Adding value
+spider_cuatro.p <- spider_tres.p +
+  geom_text( aes(label = valor))
+spider_cuatro.p
+
+## Improving geometry
+spider_cuatro.p <- spider_tres.p +
+  geom_text( aes(label = valor),position = position_nudge(y = 0.3))
+spider_cuatro.p
+
+# Cleaning plot
+spider_cinco.p <- spider_cuatro.p +
+  theme_light() +                         
+  theme(panel.border = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.ticks.y = element_blank(),       
+        axis.text.y = element_blank(),       
+        axis.title = element_blank()         
+  )
+spider_cinco.p
+
+## Adding dinamic title
+spider_seis.p <- spider_cinco.p +
+  labs(title = "SNP with higher PBS value") +
+  xlab("Number of SNPs by 10KB")+
+  ylab("PBS") +
+  theme(plot.title=element_text(size=15,face="bold", color = "grey20"))
+spider_seis.p
+
+## Merging
+grid1 <- plot_grid(p1, spider_seis.p, align = "h", labels = c('B', 'C'))
+grid2 <- plot_grid(man_seis.p, grid1, align = "h", labels = 'A', nrow = 2)
 
 # Guardar plot
-ggsave( filename = jpg_file,     # nombre del archivo que se va a crear
-        plot = man_seis.p,              # cual grafico guardamos?
-        width = 15,                 # Ancho 10
-        height = 8,                # Altura 10
-        units = "in",               # Pulgadas, "in"ches
-        dpi = 300 ) 
+ggsave(filename = jpg_file, 
+       plot = grid2, 
+       device = "png", 
+       width = 15, height = 11, units = "in",
+       bg = "white",
+       dpi = 300)

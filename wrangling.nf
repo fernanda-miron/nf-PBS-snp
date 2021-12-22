@@ -219,7 +219,8 @@ rfile = Channel.fromPath("pbs_calculator.R")
 /* Import modules
 */
  include {
-   fst_calculation; fst_calculation_2; fst_calculation_3; pbs_by_snp} from './nf_modules/modules.nf'
+   fst_calculation; fst_calculation_2; fst_calculation_3; pbs_by_snp;
+	 af_1; af_2; af_3} from './nf_modules/modules.nf'
 
  /*
   * main pipeline logic
@@ -229,6 +230,9 @@ rfile = Channel.fromPath("pbs_calculator.R")
 	 p1 = fst_calculation(vcf, pop_1, pop_2)
 	 p2 = fst_calculation_2(vcf, pop_1, pop_out)
 	 p3 = fst_calculation_3(vcf, pop_2, pop_out)
-	 p4 = p1.mix(p2,p3).toList()
-	 p5 = pbs_by_snp(p4, rfile)
+	 p4 = af_1(vcf, pop_1)
+	 p5 = af_2(vcf, pop_2)
+	 p6 = af_3(vcf, pop_out)
+	 p7 = p1.mix(p2,p3,p4,p5,p6).toList()
+	 p8 = pbs_by_snp(p7, rfile)
  }
