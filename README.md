@@ -9,7 +9,7 @@ given a VCF file and three populations.
 
 ### Workflow overview
 
-![General Workflow](dev_notes/PBS_tool.jpg)
+![General Workflow](dev_notes/PBS_tool.png)
 
 ------------------------------------------------------------------------
 

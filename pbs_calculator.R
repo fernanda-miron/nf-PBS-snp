@@ -313,7 +313,7 @@ grid2 <- plot_grid(man_seis.p, grid1, align = "h", labels = 'A', nrow = 2)
 # Guardar plot
 ggsave(filename = jpg_file, 
        plot = grid2, 
-       device = "png", 
+       device = "png",
        width = 15, height = 11, units = "in",
        bg = "white",
        dpi = 300)

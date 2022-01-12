@@ -3,7 +3,6 @@
 ## Uploading libraries
 library("stringr")
 library("dplyr")
-library("tidyverse")
 
 ## Read args from command line
 args <- commandArgs(trailingOnly = T)
